@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>タイムライン記録モック</title>
+  <style>
+    :root {
+      --bg: #0b0c10;
+      --panel: #111217;
+      --panel-2: #161821;
+      --text: #e9eef5;
+      --muted: #aab4c3;
+      --primary: #5aa9ff;
+      --accent: #6dfcd6;
+      --danger: #ff6b6b;
+      --warn: #ffc857;
+      --ok: #5ad17a;
+      --card: #151823;
+      --border: #2a2f3a;
+      --shadow: 0 6px 24px rgba(0,0,0,.35);
+      --radius-lg: 18px;
+      --radius-md: 12px;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", Meiryo, "Noto Sans JP", sans-serif; }
+    * { box-sizing: border-box; }
+
+    /* Phone frame (375x667) */
+    .phone {
+      width: 375px; height: 667px; margin: 16px auto; background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border); border-radius: 28px; box-shadow: var(--shadow); display: flex; flex-direction: column; overflow: hidden;
+    }
+    .header { padding: 14px 16px; display:flex; align-items:center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .header .title { font-weight: 700; letter-spacing: .2px; }
+    .header .sub { font-size: 12px; color: var(--muted); }
+
+    .content { flex: 1; overflow: auto; padding: 14px; }
+
+    .tabbar { height: 60px; display:flex; border-top: 1px solid var(--border); background: rgba(0,0,0,.2); }
+    .tabbar button { flex:1; background: transparent; color: var(--muted); border:0; font-size: 11px; display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center; }
+    .tabbar button.active { color: var(--text); }
+
+    .grid-2x3 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      padding: 14px; border-radius: var(--radius-md); border:1px solid var(--border); background: var(--card); color: var(--text);
+      font-weight: 600; letter-spacing: .3px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.15); display:flex; align-items:center; justify-content:center; gap:8px;
+      transition: transform .05s ease, background .2s ease;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn:disabled { opacity:.5; pointer-events:none; filter: saturate(0.7); }
+    .btn.inline { padding: 8px 12px; font-weight: 500; }
+    .btn.primary { background: linear-gradient(180deg, #20304a, #172335); border-color:#27364e; }
+    .btn.warn { background: linear-gradient(180deg, #3f2f1a, #2a1f13); border-color:#4d3720; color:#ffdca8; }
+
+    .pill { display:inline-flex; align-items:center; gap:8px; padding: 6px 10px; background: #192033; border:1px solid #223055; border-radius: 999px; font-size: 12px; color: var(--muted); }
+    .pill .dot { width:8px; height:8px; border-radius:999px; }
+
+    .section { display:none; }
+    .section.active { display:block; }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; box-shadow: var(--shadow); }
+    .cards { display: grid; gap: 10px; }
+
+    .mini-tl { display:grid; gap:8px; margin-top: 10px; }
+    .seg { display:flex; align-items:center; gap:10px; padding:10px; border-radius: 12px; background:#111420; border:1px solid #22293a; }
+    .seg .ic { width:32px; height:32px; border-radius: 8px; display:grid; place-items:center; font-size: 18px; background:#1a2030; }
+    .seg .meta { flex:1; }
+    .seg .meta .t { font-weight: 700; }
+    .seg .meta .sub { color: var(--muted); font-size: 12px; }
+    .seg .edit { opacity:.8; }
+
+    .row { display:flex; gap:10px; align-items:center; }
+    .row.space { justify-content:space-between; }
+
+    .date-nav { display:flex; justify-content: space-between; align-items:center; padding:8px 4px; }
+    .date-nav .btn.inline { background:#101522; border-color:#1f2740; }
+
+    .list { display:grid; gap:10px; }
+
+    .photos-grid { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+    .thumb { width:100%; aspect-ratio:1/1; background:#0e1525; border:1px solid #233052; border-radius: 10px; display:grid; place-items: center; overflow:hidden; }
+    .thumb img { width:100%; height:100%; object-fit:cover; }
+    .filter { display:flex; gap:8px; margin-bottom:8px; flex-wrap: wrap; }
+
+    .switch { display:flex; align-items:center; gap:10px; padding:10px; background:#0e1320; border:1px solid #1f2740; border-radius: 12px; }
+    .switch input { appearance: none; width: 44px; height: 26px; border-radius: 999px; background:#2a334d; position: relative; outline: none; cursor: pointer; }
+    .switch input:checked { background: #1d5fbf; }
+    .switch input::after { content:""; position:absolute; width:20px; height:20px; border-radius:999px; background:#fff; top:3px; left:3px; transition: all .2s ease; }
+    .switch input:checked::after { left:21px; }
+
+    .meta-kv { display:grid; grid-template-columns: 100px 1fr; gap:6px 12px; font-size: 12px; color: var(--muted); }
+
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background:#0f1525; color:var(--text); border:1px solid #29334d; border-radius:12px; padding:10px 12px; box-shadow: var(--shadow); opacity:0; pointer-events:none; transition: opacity .2s ease; }
+    .toast.show { opacity:1; }
+
+    .modal { position: fixed; inset:0; display:none; place-items:center; background: rgba(0,0,0,.55); }
+    .modal .sheet { width: 90%; max-width: 340px; background: var(--card); border:1px solid var(--border); border-radius: 16px; padding:12px; box-shadow: var(--shadow); }
+    .modal .sheet h3 { margin: 0 0 8px; }
+    .modal .sheet .row { margin-bottom:6px; }
+    .modal .sheet input[type="time"] { width: 100%; background:#0e1320; color:var(--text); border:1px solid #26324d; border-radius: 10px; padding:8px; }
+  </style>
+</head>
+<body>
+  <div class="phone" id="app">
+    <div class="header">
+      <div>
+        <div class="title">タイムライン記録</div>
+        <div class="sub" id="todayLabel">今日</div>
+      </div>
+      <div class="pill"><span class="dot" id="statusDot"></span><span id="statusText">—</span></div>
+    </div>
+
+    <div class="content">
+      <!-- Home -->
+      <section id="home" class="section active">
+        <div class="card" style="margin-bottom:12px;">
+          <div class="row space">
+            <div>
+              <div style="font-size:12px; color:var(--muted);">現在</div>
+              <div style="font-size:20px; font-weight:800;" id="currentStatus">—</div>
+              <div class="sub" id="elapsed">経過 00:00:00</div>
+            </div>
+            <button class="btn inline primary" id="addPhotoHome">写真追加</button>
+          </div>
+        </div>
+        <div class="grid-2x3">
+          <button class="btn" data-status="出社">🏢 出社</button>
+          <button class="btn" data-status="退社">🏠 退社</button>
+          <button class="btn" data-status="作業">🛠️ 作業</button>
+          <button class="btn" data-status="待機">⏱️ 待機</button>
+          <button class="btn" data-status="移動">🚚 移動</button>
+          <button class="btn" data-status="休憩">☕ 休憩</button>
+        </div>
+
+        <div style="margin-top:14px;" class="card">
+          <div class="row space" style="margin-bottom:8px;">
+            <div style="font-weight:700;">今日のタイムライン（直近）</div>
+            <button class="btn inline" id="toTimeline">全て表示</button>
+          </div>
+          <div class="mini-tl" id="miniTimeline"></div>
+        </div>
+      </section>
+
+      <!-- Timeline -->
+      <section id="timeline" class="section">
+        <div class="date-nav">
+          <button class="btn inline" id="prevDay">〈 前日</button>
+          <div id="dateLabel" style="font-weight:700;"></div>
+          <button class="btn inline" id="nextDay">翌日 〉</button>
+        </div>
+        <div class="list" id="segmentList"></div>
+      </section>
+
+      <!-- Photos -->
+      <section id="photos" class="section">
+        <div class="filter" id="photoFilter"></div>
+        <div class="row space" style="margin-bottom:8px;">
+          <div class="sub">各ステータス 0〜5 枚</div>
+          <div class="row">
+            <input type="file" accept="image/*" id="fileInput" hidden multiple />
+            <button class="btn inline primary" id="addPhotoBtn">＋ 追加</button>
+          </div>
+        </div>
+        <div class="photos-grid" id="photoGrid"></div>
+      </section>
+
+      <!-- Settings -->
+      <section id="settings" class="section">
+        <div class="cards">
+          <div class="switch">
+            <input type="checkbox" id="consent" />
+            <div>
+              <div style="font-weight:700;">位置情報の取得に同意</div>
+              <div class="sub">バックグラウンド送信を想定（モックはUIに表示しない）</div>
+            </div>
+          </div>
+          <div class="switch">
+            <input type="checkbox" id="notify" />
+            <div>
+              <div style="font-weight:700;">通知</div>
+              <div class="sub">未打刻や位置停止をトーストで疑似通知</div>
+            </div>
+          </div>
+          <div class="switch">
+            <input type="checkbox" id="autoMove" />
+            <div>
+              <div style="font-weight:700;">自動移動検知（モック）</div>
+              <div class="sub">ONで一定間隔に「移動」区間を自動挿入</div>
+            </div>
+          </div>
+          <div class="card">
+            <div style="font-weight:700; margin-bottom:6px;">送信状況（ダミー）</div>
+            <div class="meta-kv">
+              <div>成功</div><div id="sentCount">0</div>
+              <div>保留</div><div id="pendingCount">0</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <nav class="tabbar">
+      <button data-tab="home" class="active" aria-label="Home">🏠<span>Home</span></button>
+      <button data-tab="timeline" aria-label="Timeline">🗂️<span>Timeline</span></button>
+      <button data-tab="photos" aria-label="Photos">🖼️<span>Photos</span></button>
+      <button data-tab="settings" aria-label="Settings">⚙️<span>Settings</span></button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast"><span id="toastMsg"></span><button class="btn inline" id="toastAction" style="margin-left:8px; display:none;">元に戻す</button></div>
+
+  <!-- Edit Modal -->
+  <div class="modal" id="editModal" aria-hidden="true">
+    <div class="sheet">
+      <h3>区間の時刻を編集</h3>
+      <div class="row"><label style="width:80px;">開始</label><input type="time" id="editStart" /></div>
+      <div class="row"><label style="width:80px;">終了</label><input type="time" id="editEnd" /></div>
+      <div class="row" style="justify-content:flex-end; gap:8px;">
+        <button class="btn inline" id="cancelEdit">キャンセル</button>
+        <button class="btn inline primary" id="saveEdit">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Utilities =====
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => [...root.querySelectorAll(sel)];
+    const fmtTime = d => d.toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
+    const fmtDate = d => d.toLocaleDateString('ja-JP', { year:'numeric', month:'2-digit', day:'2-digit'});
+    const pad = n => String(n).padStart(2,'0');
+    const todayKey = (d=new Date()) => d.toISOString().slice(0,10);
+    const durStr = (ms) => { ms = Math.max(0, ms); const s=Math.floor(ms/1000), h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60; return `${pad(h)}:${pad(m)}:${pad(sec)}`; };
+    const clone = (o) => JSON.parse(JSON.stringify(o));
+
+    // ===== Data Model =====
+    const defaultState = {
+      user: { id: 'u-001', name: '班員A', team_id: 't-01' },
+      settings: { consent_location: true, notify: true, auto_move_detect: false },
+      timeline: [
+        { id:'seg1', status:'出社', start_at:'2025-08-18T08:15:00', end_at:'2025-08-18T08:30:00', loc:{lat:33.5902, lon:130.4017}, source:'manual' },
+        { id:'seg2', status:'移動', start_at:'2025-08-18T08:30:00', end_at:'2025-08-18T08:50:00', loc:{lat:33.5890, lon:130.4200}, source:'auto' },
+        { id:'seg3', status:'作業', start_at:'2025-08-18T08:50:00', end_at:'2025-08-18T12:00:00', loc:{lat:33.5920, lon:130.4380}, source:'manual' }
+      ],
+      photos: { '作業': [], '待機': [], '移動': [], '休憩': [] },
+      queue: { pending: 0, sent: 12 }
+    };
+    function loadState(){ const raw = localStorage.getItem('mock_state'); if(!raw){ saveState(defaultState); return clone(defaultState);} try { return JSON.parse(raw);} catch(e){ return clone(defaultState);} }
+    function saveState(st){ localStorage.setItem('mock_state', JSON.stringify(st)); }
+
+    let state = loadState();
+    let currentDate = new Date();
+    let autoMoveTimer = null;
+    let lastActionTs = 0;
+    let undoSnapshot = null;
+
+    // ===== Status Meta =====
+    const STATUS_META = { '出社':{color:'#5aa9ff',icon:'🏢'}, '退社':{color:'#ffd166',icon:'🏠'}, '作業':{color:'#5ad17a',icon:'🛠️'}, '待機':{color:'#b7c4d6',icon:'⏱️'}, '移動':{color:'#f5a9b8',icon:'🚚'}, '休憩':{color:'#c6a8ff',icon:'☕'} };
+
+    function setStatusPill(status){ const meta = STATUS_META[status]||{color:'#889',icon:'·'}; $('#statusText').textContent = status || '—'; $('#statusDot').style.background = meta.color; $('#currentStatus').textContent = status || '—'; }
+    function currentOpenSegment(){ const t = state.timeline; return [...t].reverse().find(s => !s.end_at) || null; }
+    function endCurrentSegment(){ const seg = currentOpenSegment(); if(seg){ seg.end_at = new Date().toISOString(); } }
+    function randomLoc(){ const base={lat:33.5902, lon:130.4017}; const d=()=> (Math.random()-0.5)*0.02; return { lat:+(base.lat+d()).toFixed(6), lon:+(base.lon+d()).toFixed(6)}; }
+
+    function createSegment(status, source='manual'){
+      const id = `seg_${Date.now()}`;
+      state.timeline.push({ id, status, start_at:new Date().toISOString(), end_at:null, loc: randomLoc(), source });
+    }
+
+    function doStatusChange(status, source='manual'){
+      // snapshot for undo
+      undoSnapshot = clone(state.timeline);
+      const prev = currentOpenSegment()?.status || '—';
+      endCurrentSegment();
+      createSegment(status, source);
+      saveState(state);
+      renderAll();
+      // temporarily lock buttons
+      lockStatusButtons(true); setTimeout(()=> lockStatusButtons(false), 800);
+      toast(`${prev} → ${status} に切替`, { actionText: '元に戻す', action: ()=>{ if(undoSnapshot){ state.timeline = undoSnapshot; saveState(state); renderAll(); undoSnapshot=null; } } });
+    }
+
+    function requestStatusChange(status){
+      const now = Date.now();
+      if(now - lastActionTs < 1200){ toast('連続タップを無効化'); return; }
+      lastActionTs = now;
+      const open = currentOpenSegment();
+      if(open && open.status === status){ toast('同じステータス'); return; }
+      // short segment guard
+      if(open){
+        const durMs = now - new Date(open.start_at).getTime();
+        if(durMs < 60*1000){
+          return confirmDialog('直前の区間が1分未満です。切り替えますか？', ()=> doStatusChange(status));
+        }
+      }
+      doStatusChange(status);
+    }
+
+    function lockStatusButtons(on){ $$('.grid-2x3 .btn').forEach(b => b.disabled = !!on); }
+
+    // ===== Rendering =====
+    function segmentsForDay(date){ const key=todayKey(date); return state.timeline.filter(s => (s.start_at||'').slice(0,10)===key); }
+    function segCard(seg, withEdit=true){
+      const el=document.createElement('div'); el.className='seg';
+      const meta=STATUS_META[seg.status]||{}; const icon=document.createElement('div'); icon.className='ic'; icon.textContent=meta.icon||'•'; icon.style.color=meta.color||'#9ab';
+      const metaDiv=document.createElement('div'); metaDiv.className='meta';
+      const st=new Date(seg.start_at); const en=seg.end_at? new Date(seg.end_at): new Date();
+      const title=document.createElement('div'); title.className='t'; title.textContent=`${seg.status}  ${fmtTime(st)}–${fmtTime(en)} (${durStr(en-st)})`;
+      const sub=document.createElement('div'); sub.className='sub'; const loc=seg.loc? `${seg.loc.lat.toFixed(4)}, ${seg.loc.lon.toFixed(4)}`:'—'; sub.textContent=`📍 ${loc}  •  由来: ${seg.source||'—'}`;
+      metaDiv.appendChild(title); metaDiv.appendChild(sub);
+      el.appendChild(icon); el.appendChild(metaDiv);
+      if(withEdit){ const edit=document.createElement('button'); edit.className='btn inline'; edit.textContent='✎'; edit.title='編集'; edit.addEventListener('click',()=>openEditModal(seg.id)); el.appendChild(edit); }
+      return el;
+    }
+    function renderMiniTimeline(){ const cont=$('#miniTimeline'); cont.innerHTML=''; const list=segmentsForDay(new Date()).slice(-3).reverse(); if(list.length===0){ cont.innerHTML='<div class="sub">まだ記録がありません</div>'; return;} list.forEach(s=>cont.appendChild(segCard(s,false))); }
+    function renderTimeline(){ $('#dateLabel').textContent = fmtDate(currentDate); const list=$('#segmentList'); list.innerHTML=''; const segs=segmentsForDay(currentDate); if(segs.length===0){ list.innerHTML='<div class="card sub">この日の記録はありません</div>'; return;} segs.forEach(s=>list.appendChild(segCard(s))); }
+    function renderPhotos(){ const filter=$('#photoFilter'); filter.innerHTML=''; const statuses=['作業','待機','移動','休憩']; statuses.forEach(st=>{ const b=document.createElement('button'); b.className='btn inline'; b.textContent=st; b.dataset.status=st; if(getPhotoFilter()===st) b.classList.add('primary'); b.addEventListener('click',()=>{ setPhotoFilter(st); renderPhotos();}); filter.appendChild(b); }); const grid=$('#photoGrid'); grid.innerHTML=''; const cur=getPhotoFilter(); (state.photos[cur]||[]).forEach(p=>{ const t=document.createElement('div'); t.className='thumb'; const img=document.createElement('img'); img.src=p.url; img.alt=cur; t.appendChild(img); grid.appendChild(t); }); }
+    function renderHeader(){ $('#todayLabel').textContent = `${fmtDate(new Date())} / ${new Date().toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}`; const open=currentOpenSegment(); if(open){ setStatusPill(open.status);} else { setStatusPill('—'); } const el=$('#elapsed'); if(open){ const dur=Date.now()-new Date(open.start_at).getTime(); el.textContent=`経過 ${durStr(dur)}`;} else { el.textContent='経過 00:00:00'; } }
+    function renderSettings(){ $('#consent').checked=!!state.settings.consent_location; $('#notify').checked=!!state.settings.notify; $('#autoMove').checked=!!state.settings.auto_move_detect; $('#sentCount').textContent=state.queue.sent; $('#pendingCount').textContent=state.queue.pending; }
+    function renderAll(){ renderHeader(); renderMiniTimeline(); renderTimeline(); renderPhotos(); renderSettings(); }
+
+    // ===== Edit Modal =====
+    let editingId=null;
+    function openEditModal(id){ editingId=id; const seg=state.timeline.find(s=>s.id===id); if(!seg) return; const st=new Date(seg.start_at), en=new Date(seg.end_at||Date.now()); $('#editStart').value=`${pad(st.getHours())}:${pad(st.getMinutes())}`; $('#editEnd').value=`${pad(en.getHours())}:${pad(en.getMinutes())}`; $('#editModal').style.display='grid'; }
+    function closeEditModal(){ $('#editModal').style.display='none'; editingId=null; }
+    $('#cancelEdit').addEventListener('click', closeEditModal);
+    $('#saveEdit').addEventListener('click', ()=>{ if(!editingId) return closeEditModal(); const seg=state.timeline.find(s=>s.id===editingId); if(!seg) return closeEditModal(); const [sh,sm]=$('#editStart').value.split(':').map(Number); const [eh,em]=$('#editEnd').value.split(':').map(Number); const day=new Date(seg.start_at).toISOString().slice(0,10); const start=new Date(`${day}T${pad(sh)}:${pad(sm)}:00`); const end=new Date(`${day}T${pad(eh)}:${pad(em)}:00`); if(end<=start){ toast('終了は開始より後の時刻'); return; } seg.start_at=start.toISOString(); seg.end_at=end.toISOString(); saveState(state); renderAll(); closeEditModal(); toast('編集を保存'); });
+
+    // ===== Tab Navigation =====
+    $$('.tabbar button').forEach(btn=> btn.addEventListener('click', ()=>{ const tab=btn.dataset.tab; $$('.tabbar button').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); $$('.section').forEach(s=>s.classList.remove('active')); $('#'+tab).classList.add('active'); }));
+    $('#toTimeline').addEventListener('click', ()=>{ $('[data-tab="timeline"]').click(); });
+
+    // ===== Status Buttons =====
+    // Normal buttons
+    $$('.grid-2x3 .btn').forEach(b => { if(b.dataset.status !== '退社'){ b.addEventListener('click', ()=> requestStatusChange(b.dataset.status)); } });
+    // Long-press for 退社
+    const leaveBtn = $('.grid-2x3 .btn[data-status="退社"]');
+    if(leaveBtn){
+      let timer=null, pressed=false;
+      const start= (e)=>{ pressed=true; timer=setTimeout(()=>{ if(pressed){ requestStatusChange('退社'); } }, 700); };
+      const cancel= ()=>{ if(timer){ clearTimeout(timer); timer=null; } if(pressed){ /* short press */ toast('退社は長押しで実行'); } pressed=false; };
+      leaveBtn.addEventListener('mousedown', start);
+      leaveBtn.addEventListener('touchstart', start, {passive:true});
+      ['mouseup','mouseleave','touchend','touchcancel'].forEach(ev=> leaveBtn.addEventListener(ev, cancel));
+    }
+
+    // ===== Day Nav =====
+    $('#prevDay').addEventListener('click', ()=>{ currentDate = new Date(currentDate.getTime()-86400000); renderTimeline(); });
+    $('#nextDay').addEventListener('click', ()=>{ currentDate = new Date(currentDate.getTime()+86400000); renderTimeline(); });
+
+    // ===== Photos =====
+    function getPhotoFilter(){ return localStorage.getItem('photo_filter') || '作業'; }
+    function setPhotoFilter(v){ localStorage.setItem('photo_filter', v); }
+    $('#addPhotoBtn').addEventListener('click', ()=> $('#fileInput').click());
+    $('#addPhotoHome').addEventListener('click', ()=> { $('[data-tab="photos"]').click(); $('#addPhotoBtn').focus(); });
+    $('#fileInput').addEventListener('change', (e)=>{ const files=[...e.target.files]; if(files.length===0) return; files.forEach(f=> addPhoto(URL.createObjectURL(f))); e.target.value=''; });
+    function addPhoto(url){ const st=getPhotoFilter(); state.photos[st] ||= []; if(state.photos[st].length>=5){ toast('このステータスは5枚まで'); return; } state.photos[st].push({ id:'p_'+Date.now(), url, taken_at:new Date().toISOString() }); saveState(state); renderPhotos(); toast('写真を追加'); }
+
+    // ===== Auto Move Detect (mock) =====
+    function setAutoMove(on){ state.settings.auto_move_detect = on; saveState(state); if(autoMoveTimer){ clearInterval(autoMoveTimer); autoMoveTimer=null; } if(on){ autoMoveTimer=setInterval(()=>{ doStatusChange('移動','auto'); }, 20000); } }
+    $('#autoMove').addEventListener('change', (e)=>{ setAutoMove(e.target.checked); toast(e.target.checked? '自動移動検知 ON':'自動移動検知 OFF'); });
+
+    // ===== Consent & Notify =====
+    $('#consent').addEventListener('change', (e)=>{ state.settings.consent_location = e.target.checked; saveState(state); });
+    $('#notify').addEventListener('change', (e)=>{ state.settings.notify = e.target.checked; saveState(state); });
+
+    // ===== Toast (with optional action) =====
+    let toastTimer=null, toastActionCb=null;
+    function toast(msg, opts={}){
+      const t=$('#toast'), m=$('#toastMsg'), a=$('#toastAction');
+      m.textContent = msg; t.classList.add('show');
+      if(opts.action && opts.actionText){ a.style.display='inline-flex'; a.textContent = opts.actionText; toastActionCb = opts.action; }
+      else { a.style.display='none'; toastActionCb=null; }
+      if(toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(()=> hideToast(), 2600);
+    }
+    function hideToast(){ const t=$('#toast'); t.classList.remove('show'); toastActionCb=null; }
+    $('#toastAction').addEventListener('click', ()=>{ if(toastActionCb){ const cb=toastActionCb; hideToast(); cb(); } });
+
+    // ===== Confirm Dialog =====
+    let confirmOkCb=null;
+    function confirmDialog(message, onOk){ $('#confirmMsg').textContent = message; $('#confirmModal').style.display='grid'; confirmOkCb = onOk; }
+    $('#confirmCancel').addEventListener('click', ()=>{ $('#confirmModal').style.display='none'; confirmOkCb=null; });
+    $('#confirmOk').addEventListener('click', ()=>{ $('#confirmModal').style.display='none'; if(confirmOkCb){ const cb=confirmOkCb; confirmOkCb=null; cb(); } });
+
+    // ===== Ticker =====
+    setInterval(()=>{ renderHeader(); }, 1000);
+
+    // ===== Init =====
+    function init(){ setStatusPill(currentOpenSegment()?.status || '—'); setPhotoFilter(getPhotoFilter()); setAutoMove(state.settings.auto_move_detect); renderAll(); }
+    init();
+  </script>
+  <!-- Confirm Modal -->
+  <div class="modal" id="confirmModal" aria-hidden="true">
+    <div class="sheet">
+      <h3 id="confirmTitle">確認</h3>
+      <div id="confirmMsg" class="sub" style="margin-bottom:10px;"></div>
+      <div class="row" style="justify-content:flex-end; gap:8px;">
+        <button class="btn inline" id="confirmCancel">キャンセル</button>
+        <button class="btn inline primary" id="confirmOk">OK</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
