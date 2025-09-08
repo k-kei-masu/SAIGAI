@@ -2,9 +2,15 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=375, initial-scale=1.0, user-scalable=no">
+    <!-- 修正1: viewport を端末幅＆セーフエリア対応に -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
     <title>タイムライン記録</title>
     <style>
+        :root {
+            /* 修正2: ボトムナビの高さを変数化して、コンテンツ側の下余白に反映 */
+            --navH: 72px;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -12,40 +18,51 @@
             -webkit-tap-highlight-color: transparent;
         }
 
+        html, body {
+            height: 100%;
+        }
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: #fff;
-            height: 100vh;
+            /* 修正3: iOS アドレスバー対策で 100vh ではなく 100dvh を使用 */
+            min-height: 100dvh;
             display: flex;
             flex-direction: column;
+            /* 画面全体スクロールは抑止し、内部スクロールに一本化 */
             overflow: hidden;
             position: relative;
         }
 
         .app-container {
-            flex: 1;
+            /* 修正4: flex 子要素にスクロールを許可するため min-height:0 を付与 */
+            flex: 1 1 auto;
             display: flex;
             flex-direction: column;
             background: rgba(0, 0, 0, 0.2);
             backdrop-filter: blur(10px);
+            min-height: 0;
         }
 
         .content {
-            flex: 1;
+            /* 修正5: 内部スクロールの有効化（iOS で必須） */
+            flex: 1 1 auto;
             overflow-y: auto;
-            padding-bottom: 60px;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+            /* 修正6: ボトムナビ＋セーフエリア分の下余白を常時確保 */
+            padding-bottom: calc(var(--navH) + 16px + env(safe-area-inset-bottom));
         }
 
         .tab-content {
             display: none;
             animation: fadeIn 0.3s ease;
+            /* スクロール制御の親で高さ制約がかからないように */
+            min-height: 0;
         }
 
-        .tab-content.active {
-            display: block;
-        }
+        .tab-content.active { display: block; }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
@@ -62,17 +79,8 @@
             backdrop-filter: blur(5px);
         }
 
-        .current-status {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 8px;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .elapsed-time {
-            font-size: 18px;
-            opacity: 0.9;
-        }
+        .current-status { font-size: 28px; font-weight: bold; margin-bottom: 8px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .elapsed-time { font-size: 18px; opacity: 0.9; }
 
         .status-buttons {
             display: grid;
@@ -99,50 +107,29 @@
         .status-btn::before {
             content: '';
             position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
+            top: 50%; left: 50%;
+            width: 0; height: 0;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.3);
             transform: translate(-50%, -50%);
             transition: width 0.5s, height 0.5s;
         }
-
-        .status-btn:active::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .status-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
-        }
-
-        .status-btn.locked {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .status-btn.退社 {
-            background: rgba(255, 100, 100, 0.3);
-            border-color: rgba(255, 100, 100, 0.5);
-        }
+        .status-btn:active::before { width: 300px; height: 300px; }
+        .status-btn:hover { background: rgba(255, 255, 255, 0.3); transform: scale(1.05); }
+        .status-btn.locked { opacity: 0.5; cursor: not-allowed; }
+        .status-btn.退社 { background: rgba(255, 100, 100, 0.3); border-color: rgba(255, 100, 100, 0.5); }
 
         .photo-add-btn {
             background: rgba(255, 255, 255, 0.2);
             border: 2px dashed rgba(255, 255, 255, 0.5);
             border-radius: 15px;
             padding: 15px;
-            margin: 0 20px;
+            margin: 0 20px 20px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
         }
-
-        .photo-add-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
+        .photo-add-btn:hover { background: rgba(255, 255, 255, 0.3); }
 
         /* Timeline Tab */
         .date-nav {
@@ -151,8 +138,10 @@
             align-items: center;
             padding: 20px;
             background: rgba(0, 0, 0, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
-
         .date-nav button {
             background: rgba(255, 255, 255, 0.2);
             border: none;
@@ -162,15 +151,9 @@
             cursor: pointer;
             transition: all 0.3s ease;
         }
+        .date-nav button:hover { background: rgba(255, 255, 255, 0.3); }
 
-        .date-nav button:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .timeline-list {
-            padding: 20px;
-        }
-
+        .timeline-list { padding: 20px; }
         .timeline-card {
             background: rgba(255, 255, 255, 0.15);
             border-radius: 15px;
@@ -180,38 +163,10 @@
             position: relative;
             animation: slideIn 0.3s ease;
         }
-
-        @keyframes slideIn {
-            from { opacity: 0; transform: translateX(-20px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        .timeline-card .status-badge {
-            display: inline-block;
-            background: rgba(255, 255, 255, 0.3);
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .timeline-card .time-info {
-            font-size: 14px;
-            opacity: 0.9;
-            margin-bottom: 5px;
-        }
-
-        .timeline-card .edit-btn {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            background: rgba(255, 255, 255, 0.2);
-            border: none;
-            color: #fff;
-            padding: 5px 10px;
-            border-radius: 5px;
-            cursor: pointer;
-        }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+        .timeline-card .status-badge { display: inline-block; background: rgba(255, 255, 255, 0.3); padding: 5px 15px; border-radius: 20px; font-weight: bold; margin-bottom: 10px; }
+        .timeline-card .time-info { font-size: 14px; opacity: 0.9; margin-bottom: 5px; }
+        .timeline-card .edit-btn { position: absolute; top: 15px; right: 15px; background: rgba(255, 255, 255, 0.2); border: none; color: #fff; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
 
         /* Photos Tab */
         .photo-tabs {
@@ -219,223 +174,60 @@
             justify-content: space-around;
             padding: 15px;
             background: rgba(0, 0, 0, 0.2);
+            position: sticky; top: 0; z-index: 10;
         }
-
-        .photo-tab {
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border: none;
-            color: #fff;
-            border-radius: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .photo-tab.active {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        .photo-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            padding: 20px;
-        }
-
-        .photo-item {
-            aspect-ratio: 1;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            overflow: hidden;
-        }
-
-        .photo-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .photo-item.add-photo {
-            border: 2px dashed rgba(255, 255, 255, 0.5);
-        }
-
-        .photo-item:hover {
-            transform: scale(1.05);
-        }
+        .photo-tab { padding: 10px 20px; background: rgba(255, 255, 255, 0.1); border: none; color: #fff; border-radius: 20px; cursor: pointer; transition: all 0.3s ease; }
+        .photo-tab.active { background: rgba(255, 255, 255, 0.3); }
+        .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; padding: 20px; }
+        .photo-item { aspect-ratio: 1; background: rgba(255, 255, 255, 0.1); border-radius: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s ease; overflow: hidden; }
+        .photo-item img { width: 100%; height: 100%; object-fit: cover; }
+        .photo-item.add-photo { border: 2px dashed rgba(255, 255, 255, 0.5); }
+        .photo-item:hover { transform: scale(1.05); }
 
         /* Settings Tab */
-        .settings-list {
-            padding: 20px;
-        }
-
-        .setting-item {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .setting-label {
-            font-size: 16px;
-        }
-
-        .toggle {
-            position: relative;
-            width: 50px;
-            height: 28px;
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .toggle.active {
-            background: #4CAF50;
-        }
-
-        .toggle::after {
-            content: '';
-            position: absolute;
-            width: 24px;
-            height: 24px;
-            background: #fff;
-            border-radius: 50%;
-            top: 2px;
-            left: 2px;
-            transition: all 0.3s ease;
-        }
-
-        .toggle.active::after {
-            left: 24px;
-        }
+        .settings-list { padding: 20px; }
+        .setting-item { background: rgba(255, 255, 255, 0.1); border-radius: 15px; padding: 20px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .setting-label { font-size: 16px; }
+        .toggle { position: relative; width: 50px; height: 28px; background: rgba(255, 255, 255, 0.3); border-radius: 14px; cursor: pointer; transition: all 0.3s ease; }
+        .toggle.active { background: #4CAF50; }
+        .toggle::after { content: ''; position: absolute; width: 24px; height: 24px; background: #fff; border-radius: 50%; top: 2px; left: 2px; transition: all 0.3s ease; }
+        .toggle.active::after { left: 24px; }
 
         /* Bottom Navigation */
         .bottom-nav {
             position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
+            bottom: 0; left: 0; right: 0;
             background: rgba(0, 0, 0, 0.3);
             backdrop-filter: blur(10px);
-            display: flex;
-            justify-content: space-around;
-            padding: 10px 0 25px;
+            display: flex; justify-content: space-around; align-items: center;
+            height: var(--navH);
+            padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
             border-top: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
         }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            cursor: pointer;
-            padding: 5px 15px;
-            transition: all 0.3s ease;
-            opacity: 0.6;
-        }
-
-        .nav-item.active {
-            opacity: 1;
-        }
-
-        .nav-icon {
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-
-        .nav-label {
-            font-size: 12px;
-        }
+        .nav-item { display: flex; flex-direction: column; align-items: center; cursor: pointer; padding: 5px 15px; transition: all 0.3s ease; opacity: 0.6; }
+        .nav-item.active { opacity: 1; }
+        .nav-icon { font-size: 24px; margin-bottom: 5px; }
+        .nav-label { font-size: 12px; }
 
         /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(5px);
-            z-index: 1000;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .modal.active {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .modal-content {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 20px;
-            padding: 30px;
-            width: 90%;
-            max-width: 350px;
-            animation: slideUp 0.3s ease;
-        }
-
-        @keyframes slideUp {
-            from { transform: translateY(50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
-        .modal-title {
-            font-size: 20px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .time-input {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            color: #fff;
-            padding: 10px;
-            border-radius: 10px;
-            width: 100%;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-
-        .modal-buttons {
-            display: flex;
-            gap: 10px;
-        }
-
-        .modal-btn {
-            flex: 1;
-            padding: 12px;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .modal-btn.save {
-            background: rgba(76, 175, 80, 0.8);
-            color: #fff;
-        }
-
-        .modal-btn.cancel {
-            background: rgba(255, 255, 255, 0.2);
-            color: #fff;
-        }
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(5px); z-index: 1000; animation: fadeIn 0.3s ease; }
+        .modal.active { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; padding: 30px; width: 90%; max-width: 350px; animation: slideUp 0.3s ease; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-title { font-size: 20px; margin-bottom: 20px; text-align: center; }
+        .time-input { background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.3); color: #fff; padding: 10px; border-radius: 10px; width: 100%; margin-bottom: 15px; font-size: 16px; }
+        .modal-buttons { display: flex; gap: 10px; }
+        .modal-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; font-size: 16px; cursor: pointer; transition: all 0.3s ease; }
+        .modal-btn.save { background: rgba(76, 175, 80, 0.8); color: #fff; }
+        .modal-btn.cancel { background: rgba(255, 255, 255, 0.2); color: #fff; }
 
         /* Toast */
         .toast {
             position: fixed;
-            bottom: 80px;
             left: 50%;
             transform: translateX(-50%) translateY(100px);
+            bottom: calc(var(--navH) + 16px + env(safe-area-inset-bottom));
             background: rgba(0, 0, 0, 0.8);
             color: #fff;
             padding: 15px 25px;
@@ -445,44 +237,15 @@
             z-index: 2000;
             backdrop-filter: blur(10px);
         }
-
-        .toast.show {
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
-        }
-
-        .toast.undo {
-            background: rgba(33, 150, 243, 0.9);
-            cursor: pointer;
-        }
+        .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+        .toast.undo { background: rgba(33, 150, 243, 0.9); cursor: pointer; }
 
         /* Loading */
-        .loading {
-            display: none;
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 3000;
-        }
+        .loading { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 3000; }
+        .spinner { width: 50px; height: 50px; border: 3px solid rgba(255, 255, 255, 0.3); border-top: 3px solid #fff; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg);} 100% { transform: rotate(360deg);} }
 
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top: 3px solid #fff;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        input[type="file"] {
-            display: none;
-        }
+        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
@@ -494,7 +257,7 @@
                     <div class="current-status" id="current-status">待機中</div>
                     <div class="elapsed-time" id="elapsed-time">00:00:00</div>
                 </div>
-                
+
                 <div class="status-buttons">
                     <button class="status-btn" data-status="出社">📥 出社</button>
                     <button class="status-btn 退社" data-status="退社">📤 退社</button>
@@ -503,16 +266,12 @@
                     <button class="status-btn" data-status="移動">🚶 移動</button>
                     <button class="status-btn" data-status="休憩">☕ 休憩</button>
                 </div>
-                
-                <div class="photo-add-btn" onclick="app.addPhoto()">
-                    📷 写真を追加
-                </div>
-                
-                <div class="timeline-list" id="recent-timeline">
-                    <!-- Recent timeline items -->
-                </div>
+
+                <div class="photo-add-btn" onclick="app.addPhoto()">📷 写真を追加</div>
+
+                <div class="timeline-list" id="recent-timeline"><!-- Recent timeline items --></div>
             </div>
-            
+
             <!-- Timeline Tab -->
             <div id="timeline-tab" class="tab-content">
                 <div class="date-nav">
@@ -520,11 +279,9 @@
                     <span id="current-date">2025-08-18</span>
                     <button onclick="app.changeDate(1)">翌日 ▶</button>
                 </div>
-                <div class="timeline-list" id="timeline-list">
-                    <!-- Timeline cards -->
-                </div>
+                <div class="timeline-list" id="timeline-list"><!-- Timeline cards --></div>
             </div>
-            
+
             <!-- Photos Tab -->
             <div id="photos-tab" class="tab-content">
                 <div class="photo-tabs">
@@ -533,11 +290,9 @@
                     <button class="photo-tab" data-status="移動">移動</button>
                     <button class="photo-tab" data-status="休憩">休憩</button>
                 </div>
-                <div class="photo-grid" id="photo-grid">
-                    <!-- Photo items -->
-                </div>
+                <div class="photo-grid" id="photo-grid"><!-- Photo items --></div>
             </div>
-            
+
             <!-- Settings Tab -->
             <div id="settings-tab" class="tab-content">
                 <div class="settings-list">
@@ -560,7 +315,7 @@
                 </div>
             </div>
         </div>
-        
+
         <!-- Bottom Navigation -->
         <div class="bottom-nav">
             <div class="nav-item active" data-tab="home">
@@ -581,7 +336,7 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Modal -->
     <div class="modal" id="edit-modal">
         <div class="modal-content">
@@ -594,18 +349,16 @@
             </div>
         </div>
     </div>
-    
+
     <!-- Toast -->
     <div class="toast" id="toast"></div>
-    
+
     <!-- Loading -->
-    <div class="loading" id="loading">
-        <div class="spinner"></div>
-    </div>
-    
+    <div class="loading" id="loading"><div class="spinner"></div></div>
+
     <!-- Hidden file input -->
     <input type="file" id="photo-input" accept="image/*" multiple onchange="app.handlePhotoUpload(event)">
-    
+
     <script>
         const app = {
             data: {
@@ -625,79 +378,54 @@
             longPressTimer: null,
             currentPhotoStatus: '作業',
             editingSegment: null,
-            
+
             init() {
                 this.loadData();
                 this.setupEventListeners();
                 this.updateUI();
                 this.startElapsedTimer();
-                
-                if (this.data.settings.auto_move_detect) {
-                    this.startAutoMove();
-                }
+                if (this.data.settings.auto_move_detect) this.startAutoMove();
             },
-            
+
             loadData() {
                 const saved = localStorage.getItem('timelineData');
-                if (saved) {
-                    this.data = JSON.parse(saved);
-                }
+                if (saved) this.data = JSON.parse(saved);
             },
-            
-            saveData() {
-                localStorage.setItem('timelineData', JSON.stringify(this.data));
-            },
-            
+            saveData() { localStorage.setItem('timelineData', JSON.stringify(this.data)); },
+
             setupEventListeners() {
                 // Navigation tabs
                 document.querySelectorAll('.nav-item').forEach(item => {
-                    item.addEventListener('click', () => {
-                        const tab = item.dataset.tab;
-                        this.switchTab(tab);
-                    });
+                    item.addEventListener('click', () => this.switchTab(item.dataset.tab));
                 });
-                
+
                 // Status buttons
                 document.querySelectorAll('.status-btn').forEach(btn => {
                     const status = btn.dataset.status;
-                    
                     if (status === '退社') {
-                        // Long press for 退社
                         btn.addEventListener('mousedown', () => this.startLongPress(status));
                         btn.addEventListener('mouseup', () => this.endLongPress());
                         btn.addEventListener('mouseleave', () => this.endLongPress());
-                        btn.addEventListener('touchstart', (e) => {
-                            e.preventDefault();
-                            this.startLongPress(status);
-                        });
-                        btn.addEventListener('touchend', (e) => {
-                            e.preventDefault();
-                            this.endLongPress();
-                        });
+                        btn.addEventListener('touchstart', (e) => { e.preventDefault(); this.startLongPress(status); }, { passive: false });
+                        btn.addEventListener('touchend', (e) => { e.preventDefault(); this.endLongPress(); }, { passive: false });
                     } else {
                         btn.addEventListener('click', () => this.changeStatus(status));
                     }
                 });
-                
+
                 // Settings toggles
                 document.querySelectorAll('.toggle').forEach(toggle => {
                     toggle.addEventListener('click', () => {
                         const setting = toggle.dataset.setting;
                         toggle.classList.toggle('active');
                         this.data.settings[setting] = toggle.classList.contains('active');
-                        
                         if (setting === 'auto_move_detect') {
-                            if (this.data.settings.auto_move_detect) {
-                                this.startAutoMove();
-                            } else {
-                                this.stopAutoMove();
-                            }
+                            this.data.settings.auto_move_detect ? this.startAutoMove() : this.stopAutoMove();
                         }
-                        
                         this.saveData();
                     });
                 });
-                
+
                 // Photo tabs
                 document.querySelectorAll('.photo-tab').forEach(tab => {
                     tab.addEventListener('click', () => {
@@ -708,359 +436,219 @@
                     });
                 });
             },
-            
+
             switchTab(tab) {
-                document.querySelectorAll('.nav-item').forEach(item => {
-                    item.classList.remove('active');
-                });
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
                 document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-                
-                document.querySelectorAll('.tab-content').forEach(content => {
-                    content.classList.remove('active');
-                });
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                 document.getElementById(`${tab}-tab`).classList.add('active');
-                
-                if (tab === 'timeline') {
-                    this.updateTimeline();
-                } else if (tab === 'photos') {
-                    this.updatePhotoGrid();
-                }
+                if (tab === 'timeline') this.updateTimeline();
+                else if (tab === 'photos') this.updatePhotoGrid();
             },
-            
+
             startLongPress(status) {
                 this.longPressTimer = setTimeout(() => {
                     this.changeStatus(status);
                     this.showToast('退社しました', 'success');
                 }, 700);
             },
-            
-            endLongPress() {
-                if (this.longPressTimer) {
-                    clearTimeout(this.longPressTimer);
-                    this.longPressTimer = null;
-                }
-            },
-            
+            endLongPress() { if (this.longPressTimer) { clearTimeout(this.longPressTimer); this.longPressTimer = null; } },
+
             changeStatus(newStatus) {
-                if (this.buttonLocked) {
-                    return;
-                }
-                
-                if (this.currentStatus === newStatus) {
-                    this.showToast('同じステータスには変更できません', 'error');
-                    return;
-                }
-                
-                // Check if last segment is less than 1 minute
+                if (this.buttonLocked) return;
+                if (this.currentStatus === newStatus) { this.showToast('同じステータスには変更できません', 'error'); return; }
+
+                // 直前1分未満チェック
                 if (this.currentSegment && this.statusStartTime) {
                     const duration = Date.now() - this.statusStartTime;
                     if (duration < 60000) {
-                        if (!confirm('直前の区間が1分未満です。本当に切り替えますか？')) {
-                            return;
-                        }
+                        if (!confirm('直前の区間が1分未満です。本当に切り替えますか？')) return;
                     }
                 }
-                
-                // Lock buttons for 0.8 seconds
+
+                // 一時ロック
                 this.buttonLocked = true;
                 document.querySelectorAll('.status-btn').forEach(btn => btn.classList.add('locked'));
                 setTimeout(() => {
                     this.buttonLocked = false;
                     document.querySelectorAll('.status-btn').forEach(btn => btn.classList.remove('locked'));
                 }, 800);
-                
-                // End current segment
-                if (this.currentSegment) {
-                    this.currentSegment.end_at = new Date().toISOString();
-                }
-                
-                // Store last action for undo
-                this.lastAction = {
-                    type: 'status_change',
-                    oldStatus: this.currentStatus,
-                    oldSegment: this.currentSegment,
-                    timestamp: Date.now()
-                };
-                
-                // Create new segment
-                const newSegment = {
-                    id: `seg${Date.now()}`,
-                    status: newStatus,
-                    start_at: new Date().toISOString(),
-                    end_at: null,
-                    loc: this.generateRandomLocation(),
-                    source: 'manual'
-                };
-                
+
+                // 現在区間終了
+                if (this.currentSegment) this.currentSegment.end_at = new Date().toISOString();
+
+                // Undo用保存
+                this.lastAction = { type: 'status_change', oldStatus: this.currentStatus, oldSegment: this.currentSegment, timestamp: Date.now() };
+
+                // 新規区間
+                const newSegment = { id: `seg${Date.now()}`, status: newStatus, start_at: new Date().toISOString(), end_at: null, loc: this.generateRandomLocation(), source: 'manual' };
                 this.data.timeline.push(newSegment);
                 this.currentSegment = newSegment;
                 this.currentStatus = newStatus;
                 this.statusStartTime = Date.now();
-                
+
                 this.saveData();
                 this.updateUI();
                 this.showToast(`${newStatus}に切り替えました`, 'undo');
             },
-            
+
             undo() {
-                if (!this.lastAction || Date.now() - this.lastAction.timestamp > 5000) {
-                    return;
-                }
-                
+                if (!this.lastAction || Date.now() - this.lastAction.timestamp > 5000) return;
                 if (this.lastAction.type === 'status_change') {
-                    // Remove last segment
                     this.data.timeline.pop();
-                    
-                    // Restore previous state
                     this.currentStatus = this.lastAction.oldStatus;
                     this.currentSegment = this.lastAction.oldSegment;
-                    
                     if (this.currentSegment) {
                         this.currentSegment.end_at = null;
                         this.statusStartTime = new Date(this.currentSegment.start_at).getTime();
                     } else {
                         this.statusStartTime = null;
                     }
-                    
                     this.saveData();
                     this.updateUI();
                     this.showToast('元に戻しました', 'success');
                     this.lastAction = null;
                 }
             },
-            
+
             generateRandomLocation() {
                 const baseLat = 33.5902;
                 const baseLon = 130.4017;
                 const offset = 0.01;
-                
-                return {
-                    lat: baseLat + (Math.random() - 0.5) * offset,
-                    lon: baseLon + (Math.random() - 0.5) * offset
-                };
+                return { lat: baseLat + (Math.random() - 0.5) * offset, lon: baseLon + (Math.random() - 0.5) * offset };
             },
-            
+
             startAutoMove() {
                 this.autoMoveInterval = setInterval(() => {
                     if (this.currentStatus && this.currentStatus !== '移動' && this.currentStatus !== '退社') {
-                        // End current segment
-                        if (this.currentSegment) {
-                            this.currentSegment.end_at = new Date().toISOString();
-                        }
-                        
-                        // Create auto move segment
-                        const moveSegment = {
-                            id: `seg${Date.now()}`,
-                            status: '移動',
-                            start_at: new Date().toISOString(),
-                            end_at: new Date(Date.now() + 5000).toISOString(),
-                            loc: this.generateRandomLocation(),
-                            source: 'auto'
-                        };
-                        
+                        if (this.currentSegment) this.currentSegment.end_at = new Date().toISOString();
+                        const moveSegment = { id: `seg${Date.now()}`, status: '移動', start_at: new Date().toISOString(), end_at: new Date(Date.now() + 5000).toISOString(), loc: this.generateRandomLocation(), source: 'auto' };
                         this.data.timeline.push(moveSegment);
-                        
-                        // Resume previous status
                         setTimeout(() => {
-                            const resumeSegment = {
-                                id: `seg${Date.now()}`,
-                                status: this.currentStatus,
-                                start_at: new Date().toISOString(),
-                                end_at: null,
-                                loc: this.generateRandomLocation(),
-                                source: 'auto'
-                            };
-                            
+                            const resumeSegment = { id: `seg${Date.now()}`, status: this.currentStatus, start_at: new Date().toISOString(), end_at: null, loc: this.generateRandomLocation(), source: 'auto' };
                             this.data.timeline.push(resumeSegment);
                             this.currentSegment = resumeSegment;
                             this.statusStartTime = Date.now();
-                            
                             this.saveData();
                             this.updateUI();
                         }, 5000);
-                        
                         this.saveData();
                         this.updateUI();
                         this.showToast('自動移動を検知しました', 'info');
                     }
                 }, 20000);
             },
-            
-            stopAutoMove() {
-                if (this.autoMoveInterval) {
-                    clearInterval(this.autoMoveInterval);
-                    this.autoMoveInterval = null;
-                }
-            },
-            
+            stopAutoMove() { if (this.autoMoveInterval) { clearInterval(this.autoMoveInterval); this.autoMoveInterval = null; } },
+
             startElapsedTimer() {
                 setInterval(() => {
+                    const el = document.getElementById('elapsed-time');
+                    if (!el) return;
                     if (this.statusStartTime) {
                         const elapsed = Date.now() - this.statusStartTime;
                         const hours = Math.floor(elapsed / 3600000);
                         const minutes = Math.floor((elapsed % 3600000) / 60000);
                         const seconds = Math.floor((elapsed % 60000) / 1000);
-                        
-                        document.getElementById('elapsed-time').textContent = 
-                            `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                        el.textContent = `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+                    } else {
+                        el.textContent = '00:00:00';
                     }
                 }, 1000);
             },
-            
+
             updateUI() {
-                // Update current status display
                 document.getElementById('current-status').textContent = this.currentStatus || '未開始';
-                
-                // Update recent timeline
                 this.updateRecentTimeline();
-                
-                // Update send status
-                document.getElementById('send-status').textContent = 
-                    `待機: ${this.data.queue.pending} / 送信済: ${this.data.timeline.length}`;
-                
-                // Update settings toggles
+                document.getElementById('send-status').textContent = `待機: ${this.data.queue.pending} / 送信済: ${this.data.timeline.length}`;
                 Object.keys(this.data.settings).forEach(key => {
                     const toggle = document.querySelector(`.toggle[data-setting="${key}"]`);
-                    if (toggle) {
-                        toggle.classList.toggle('active', this.data.settings[key]);
-                    }
+                    if (toggle) toggle.classList.toggle('active', this.data.settings[key]);
                 });
             },
-            
+
             updateRecentTimeline() {
                 const recentList = document.getElementById('recent-timeline');
                 const recent = this.data.timeline.slice(-3).reverse();
-                
                 recentList.innerHTML = recent.map(seg => `
                     <div class="timeline-card">
                         <span class="status-badge">${seg.status}</span>
-                        <div class="time-info">
-                            ${new Date(seg.start_at).toLocaleTimeString('ja-JP')} - 
-                            ${seg.end_at ? new Date(seg.end_at).toLocaleTimeString('ja-JP') : '進行中'}
-                        </div>
+                        <div class="time-info">${new Date(seg.start_at).toLocaleTimeString('ja-JP')} - ${seg.end_at ? new Date(seg.end_at).toLocaleTimeString('ja-JP') : '進行中'}</div>
                         ${seg.source === 'auto' ? '<small>（自動）</small>' : ''}
                     </div>
                 `).join('');
             },
-            
+
             updateTimeline() {
                 const list = document.getElementById('timeline-list');
-                const todaySegments = this.data.timeline.filter(seg => {
-                    return seg.start_at.startsWith(this.currentDate);
-                });
-                
+                const todaySegments = this.data.timeline.filter(seg => seg.start_at.startsWith(this.currentDate));
                 list.innerHTML = todaySegments.map(seg => `
                     <div class="timeline-card">
                         <span class="status-badge">${seg.status}</span>
                         <button class="edit-btn" onclick="app.openEditModal('${seg.id}')">✎</button>
-                        <div class="time-info">
-                            開始: ${new Date(seg.start_at).toLocaleTimeString('ja-JP')}
-                        </div>
+                        <div class="time-info">開始: ${new Date(seg.start_at).toLocaleTimeString('ja-JP')}</div>
                         ${seg.end_at ? `
-                            <div class="time-info">
-                                終了: ${new Date(seg.end_at).toLocaleTimeString('ja-JP')}
-                            </div>
-                            <div class="time-info">
-                                所要: ${this.formatDuration(seg.start_at, seg.end_at)}
-                            </div>
+                            <div class="time-info">終了: ${new Date(seg.end_at).toLocaleTimeString('ja-JP')}</div>
+                            <div class="time-info">所要: ${this.formatDuration(seg.start_at, seg.end_at)}</div>
                         ` : '<div class="time-info">進行中...</div>'}
-                        <div class="time-info">
-                            ${seg.source === 'auto' ? '自動記録' : '手動記録'}
-                        </div>
+                        <div class="time-info">${seg.source === 'auto' ? '自動記録' : '手動記録'}</div>
                     </div>
                 `).join('');
-                
                 document.getElementById('current-date').textContent = this.currentDate;
             },
-            
+
             formatDuration(start, end) {
                 const duration = new Date(end) - new Date(start);
                 const hours = Math.floor(duration / 3600000);
                 const minutes = Math.floor((duration % 3600000) / 60000);
                 return `${hours}時間${minutes}分`;
             },
-            
+
             changeDate(direction) {
                 const date = new Date(this.currentDate);
                 date.setDate(date.getDate() + direction);
                 this.currentDate = date.toISOString().split('T')[0];
                 this.updateTimeline();
             },
-            
+
             openEditModal(segmentId) {
                 const segment = this.data.timeline.find(s => s.id === segmentId);
                 if (!segment) return;
-                
                 this.editingSegment = segment;
-                
-                document.getElementById('start-time-input').value = 
-                    segment.start_at.slice(0, 16);
-                document.getElementById('end-time-input').value = 
-                    segment.end_at ? segment.end_at.slice(0, 16) : '';
-                
+                document.getElementById('start-time-input').value = segment.start_at.slice(0, 16);
+                document.getElementById('end-time-input').value = segment.end_at ? segment.end_at.slice(0, 16) : '';
                 document.getElementById('edit-modal').classList.add('active');
             },
-            
-            closeModal() {
-                document.getElementById('edit-modal').classList.remove('active');
-                this.editingSegment = null;
-            },
-            
+            closeModal() { document.getElementById('edit-modal').classList.remove('active'); this.editingSegment = null; },
+
             saveTimeEdit() {
                 if (!this.editingSegment) return;
-                
                 const startTime = document.getElementById('start-time-input').value;
                 const endTime = document.getElementById('end-time-input').value;
-                
-                if (endTime && new Date(endTime) <= new Date(startTime)) {
-                    this.showToast('終了時刻は開始時刻より後にしてください', 'error');
-                    return;
-                }
-                
+                if (endTime && new Date(endTime) <= new Date(startTime)) { this.showToast('終了時刻は開始時刻より後にしてください', 'error'); return; }
                 this.editingSegment.start_at = new Date(startTime).toISOString();
-                if (endTime) {
-                    this.editingSegment.end_at = new Date(endTime).toISOString();
-                }
-                
+                if (endTime) this.editingSegment.end_at = new Date(endTime).toISOString();
                 this.saveData();
                 this.updateTimeline();
                 this.closeModal();
                 this.showToast('時刻を更新しました', 'success');
             },
-            
+
             addPhoto() {
-                if (!this.currentStatus || ['出社', '退社'].includes(this.currentStatus)) {
-                    this.showToast('作業・待機・移動・休憩中に写真を追加できます', 'error');
-                    return;
-                }
-                
+                if (!this.currentStatus || ['出社', '退社'].includes(this.currentStatus)) { this.showToast('作業・待機・移動・休憩中に写真を追加できます', 'error'); return; }
                 document.getElementById('photo-input').click();
             },
-            
+
             handlePhotoUpload(event) {
                 const files = event.target.files;
                 if (!files.length) return;
-                
                 const status = this.currentStatus;
-                if (!this.data.photos[status]) {
-                    this.data.photos[status] = [];
-                }
-                
-                if (this.data.photos[status].length >= 5) {
-                    this.showToast('写真は最大5枚までです', 'error');
-                    return;
-                }
-                
+                if (!this.data.photos[status]) this.data.photos[status] = [];
+                if (this.data.photos[status].length >= 5) { this.showToast('写真は最大5枚までです', 'error'); return; }
                 Array.from(files).forEach(file => {
                     if (this.data.photos[status].length >= 5) return;
-                    
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        this.data.photos[status].push({
-                            url: e.target.result,
-                            taken_at: new Date().toISOString()
-                        });
-                        
+                        this.data.photos[status].push({ url: e.target.result, taken_at: new Date().toISOString() });
                         this.saveData();
                         this.updatePhotoGrid();
                         this.showToast('写真を追加しました', 'success');
@@ -1068,46 +656,27 @@
                     reader.readAsDataURL(file);
                 });
             },
-            
+
             updatePhotoGrid() {
                 const grid = document.getElementById('photo-grid');
                 const photos = this.data.photos[this.currentPhotoStatus] || [];
-                
                 let html = '';
-                
-                photos.forEach(photo => {
-                    html += `<div class="photo-item"><img src="${photo.url}" alt="Photo"></div>`;
-                });
-                
-                if (photos.length < 5) {
-                    html += `<div class="photo-item add-photo" onclick="document.getElementById('photo-input').click()">➕</div>`;
-                }
-                
+                photos.forEach(photo => { html += `<div class="photo-item"><img src="${photo.url}" alt="Photo"></div>`; });
+                if (photos.length < 5) html += `<div class=\"photo-item add-photo\" onclick=\"document.getElementById('photo-input').click()\">➕</div>`;
                 grid.innerHTML = html;
             },
-            
+
             showToast(message, type = 'info') {
                 const toast = document.getElementById('toast');
                 toast.textContent = message;
                 toast.className = `toast ${type === 'undo' ? 'undo' : ''}`;
-                
-                if (type === 'undo') {
-                    toast.onclick = () => this.undo();
-                }
-                
+                if (type === 'undo') toast.onclick = () => this.undo();
                 toast.classList.add('show');
-                
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                    toast.onclick = null;
-                }, 3000);
+                setTimeout(() => { toast.classList.remove('show'); toast.onclick = null; }, 3000);
             }
         };
-        
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', () => {
-            app.init();
-        });
+
+        document.addEventListener('DOMContentLoaded', () => { app.init(); });
     </script>
 </body>
 </html>
